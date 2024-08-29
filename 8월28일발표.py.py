@@ -15,11 +15,14 @@ import logging
 import time
 import datetime
 from streamlit_option_menu import option_menu
+from dotenv import load_dotenv
+
+
 
 #################
 # 1. 설정
 #################
-
+load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 COLLECTION_NAME = "son99_d"
@@ -244,62 +247,194 @@ def check_and_reset_gpt_usage():
 # 4. UI 설정
 #################
 
+# 기본 배경 이미지 설정 함수
+def basic_background(png_file, opacity=1):
+   bin_str = get_base64(png_file)
+   page_bg_img = f"""
+   <style>
+   .stApp {{
+       background-image: url("data:image/png;base64,{bin_str}");
+       background-size: cover;  /* 이미지가 잘리지 않도록 설정 */
+       background-position: center;
+       background-repeat: no-repeat;
+       width: 100%;
+       height: 100vh;
+       opacity: {opacity};
+       z-index: 0;
+       position: fixed;
+   }}
+   </style>
+   """
+   st.markdown(page_bg_img, unsafe_allow_html=True)
+   
+
+# 이미지를 base64 문자열로 변환하는 함수
+def get_base64(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+# 사이드바 설정 함수
 def sidebar_menu():
     with st.sidebar:
         choice = option_menu("Menu", ["챗봇", "병원&약국", "페이지3"],
-                             icons=['bi bi-robot', 'bi bi-capsule', ''],
-                             menu_icon="app-indicator", default_index=0,
-                             styles={
-                                 "container": {"padding": "4!important", "background-color": "#fafafa"},
-                                 "icon": {"color": "black", "font-size": "25px"},
-                                 "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px", "--hover-color": "#fafafa"},
-                                 "nav-link-selected": {"background-color": "#08c7b4"},
-                             })
-    return choice
+                            icons=['bi bi-robot', 'bi bi-capsule', ''],
+                            menu_icon="app-indicator", default_index=0,
+                            styles={
+                                "container": {"padding": "4!important", "background-color": "#fafafa"},
+                                "icon": {"color": "black", "font-size": "25px"},
+                                "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px", "--hover-color": "#fafafa"},
+                                "nav-link-selected": {"background-color": "#08c7b4"},
+                            })
+        if st.session_state.page != "main":
+            if choice == "챗봇":
+                st.session_state.page = "second"
+            elif choice == "병원&약국":
+                st.session_state.page = "third"
+            elif choice == "페이지3":
+                st.session_state.page = "page3"
 
-def main():
-    choice = sidebar_menu()
+def main_page():
+    background_image = '사진/효자손.png'  # 메인 페이지 배경 이미지 설정
 
-    if choice == "챗봇":
-        chat_interface()
-    elif choice == "병원&약국":
-        hospital_pharmacy_page()
+    # 배경색과 이미지를 함께 설정
+    st.markdown(f"""
+        <style>
+        .stApp {{
+            background-color: #1187cf; /* 배경색 설정 */
+            background-image: url("data:image/png;base64,{get_base64(background_image)}"); /* 투명 이미지 오버레이 */
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            width: 100%;
+            height: 100vh;
+            position: fixed;
+            z-index: 0;
+        }}
 
+        div.stButton > button {{
+            position: fixed;
+            bottom: 290px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color:  #FFFFFF;
+            color: black;
+            padding: 15px 32px;
+            font-size: 80px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            z-index: 10;
+        }}
+
+        div.stButton > button:hover {{
+            background-color: #007BFF;
+            color: white;
+        }}
+        </style>
+    """, unsafe_allow_html=True)
+
+    if st.button("효자SON 이용하기 :point_right: "):
+        st.session_state.page = "chat_interface"
+
+# 글자 하나씩 출력하는 함수
+def display_typing_effect(text):
+    output = st.empty()  # 빈 요소 생성
+    displayed_text = ""  # 출력된 텍스트를 저장할 변수
+    for char in text:
+        displayed_text += char
+        output.markdown(f"<p>{displayed_text}</p>", unsafe_allow_html=True)
+        time.sleep(0.05)  # 출력 사이에 지연 시간 추가
+        
+        
 def chat_interface():
-    st.title("의료 정보 챗봇")
+    # 배경 이미지 설정
+    background_image = '사진/002.png'
+    basic_background(background_image)
+    
+    # 모델 설명
+    # CSS 스타일을 사용하여 전체 텍스트 크기를 25px로 설정
+    st.markdown("""
+        <style>
+        .stTitle, .stButton button, .stRadio label, .stChatMessage p {
+            font-size: 25px !important;
+        }
+        .stRadio label {
+        font-size: 40px !important;  /* 라디오 버튼 레이블 크기 조정 */
+    }
+        </style>
+    """, unsafe_allow_html=True)
 
-    if 'chat_history' not in st.session_state:
-        st.session_state.chat_history = []
-        st.session_state.chat_history.append({"role": "assistant", "content": "무엇을 도와드릴까요?"})
+    # 1. 라디오 버튼 선택 인터페이스
+    if 'model_option' not in st.session_state:
+        st.session_state.model_option = None  # 초기값을 None으로 설정
 
-    # 모델 선택 버튼
-    model_option = st.radio("응답 생성 모델을 선택하세요:", ("GPT-4", "Custom Model"))
+    # 라디오 버튼 선택
+    selected_model = st.radio(
+        "사용할 모델을 선택하세요:",
+        ("GPT-4", "Custom Model"),
+        index=None  # 초기 선택을 None으로 설정
+    )
 
-    for chat in st.session_state.chat_history:
-        with st.chat_message(chat["role"]):
-            st.write(chat["content"])
+    # 2. 모델 선택이 완료되면 챗봇이 선택된 모델을 알려줌
+    if selected_model:
+        st.session_state.model_option = selected_model
+        st.success(f"{st.session_state.model_option} 모델이 선택되었습니다!")
 
-    user_input = st.chat_input("질문을 입력하세요...")
+        # 대화 내역 초기화
+        if 'chat_history' not in st.session_state:
+            st.session_state.chat_history = []
+            st.session_state.chat_history.append({"role": "assistant", "content": "무엇을 도와드릴까요?"})
 
-    if user_input:
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.write(user_input)
+        # 대화 내역 표시
+        for chat in st.session_state.chat_history:
+            if chat["role"] == "user":
+                with st.chat_message("user", avatar="사진/user.png"):
+                    st.write(chat["content"])
+            elif chat["role"] == "assistant":
+                with st.chat_message("assistant", avatar="사진/chatbot.png"):
+                    st.write(chat["content"])
 
-        with st.spinner("답변 생성 중..."):
-            if model_option == "GPT-4":
-                response, model, processing_time = generate_response(user_input, context=None, metadata=None)
-            else:
-                response, model, processing_time = generate_custom_model_response(user_input, context=None, metadata=None)
+        # 사용자 입력 필드
+        user_input = st.chat_input("질문을 입력하세요...")
 
-        st.session_state.chat_history.append({"role": "assistant", "content": response})
-        with st.chat_message("assistant"):
-            st.write(response)
+        # 사용자 질문 처리
+        if user_input:
+            st.session_state.chat_history.append({"role": "user", "content": user_input})
+            with st.chat_message("user", avatar="사진/user.png"):
+                st.write(user_input)
 
+            with st.spinner("답변 생성 중..."):
+                if st.session_state.model_option == "GPT-4":
+                    response, model, processing_time = generate_response(user_input, context=None, metadata=None)
+                else:
+                    response, model, processing_time = generate_custom_model_response(user_input, context=None, metadata=None)
+
+            st.session_state.chat_history.append({"role": "assistant", "content": response})
+            with st.chat_message("assistant", avatar="사진/chatbot.png"):
+                display_typing_effect(response)  # 타이핑 효과로 응답 출력
 
 def hospital_pharmacy_page():
     st.title("병원 & 약국 정보")
     st.write("여기에 병원과 약국 정보를 표시합니다.")
 
-if __name__ == "__main__":
-    main()
+def thrid_page():
+    st.title("페이지3")
+    st.write("여기에 페이지3의 내용을 표시합니다.")
+
+# 페이지 전환
+if 'page' not in st.session_state:
+    st.session_state.page = "main"
+
+sidebar_menu()
+
+
+
+if st.session_state.page == "main":
+    main_page()
+elif st.session_state.page == "second":
+    chat_interface()
+elif st.session_state.page == "third":
+    hospital_pharmacy_page()
+elif st.session_state.page == "page3":
+    thrid_page()
