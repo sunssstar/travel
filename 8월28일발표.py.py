@@ -16,7 +16,9 @@ import time
 import datetime
 from streamlit_option_menu import option_menu
 from dotenv import load_dotenv
-
+import folium
+from streamlit_folium import st_folium
+import pandas as pd
 
 
 #################
@@ -415,8 +417,132 @@ def chat_interface():
                 display_typing_effect(response)  # 타이핑 효과로 응답 출력
 
 def hospital_pharmacy_page():
-    st.title("병원 & 약국 정보")
-    st.write("여기에 병원과 약국 정보를 표시합니다.")
+    
+hospital_df = pd.read_csv('병원.csv')
+pharmacy_df = pd.read_csv('약국.csv')
+
+    # 배경 이미지를 base64로 인코딩하는 함수
+def hospital_pharmacy_page():
+    # 스트림릿 페이지 설정
+
+    st.markdown(f"""
+        <style>
+
+        }}
+        .button-style {{
+            display: inline-block;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px;
+            padding: 15px 30px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+            cursor: pointer;
+        }}
+        .hospital-button {{
+            background-color: lightblue;
+        }}
+        .pharmacy-button {{
+            background-color: red;
+        }}
+        .all-button {{
+            background-color: gray;
+        }}
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # 세션 상태 초기화
+    if "selected_option" not in st.session_state:
+        st.session_state.selected_option = "전체 보기"
+
+    # 병원, 약국, 전체 보기 버튼 생성
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("병원", key="hospital", help="병원 마커 표시"):
+            st.session_state.selected_option = "병원"
+    with col2:
+        if st.button("약국", key="pharmacy", help="약국 마커 표시"):
+            st.session_state.selected_option = "약국"
+    with col3:
+        if st.button("전체 보기", key="all", help="병원과 약국 마커 모두 표시"):
+            st.session_state.selected_option = "전체 보기"
+
+    col1, col2 = st.columns([2, 2])
+
+    # 지도에 병원과 약국 마커 추가
+    with col1:
+        m = folium.Map(location=[35.160522, 129.1619484], zoom_start=15)
+
+        if st.session_state.selected_option == "병원":
+            # 병원 마커만 표시
+            for idx, row in hospital_df.iterrows():
+                folium.Marker(
+                    location=[row['좌표(Y)'], row['좌표(X)']],
+                    popup=row['요양기관명'],
+                    icon=folium.Icon(color='blue', icon='info-sign')
+                ).add_to(m)
+        elif st.session_state.selected_option == "약국":
+            # 약국 마커만 표시
+            for idx, row in pharmacy_df.iterrows():
+                folium.Marker(
+                    location=[row['좌표(Y)'], row['좌표(X)']],
+                    popup=row['요양기관명'],
+                    icon=folium.Icon(color='red', icon='plus-sign')
+                ).add_to(m)
+        else:
+            # 전체 보기: 병원과 약국 모두 표시
+            for idx, row in hospital_df.iterrows():
+                folium.Marker(
+                    location=[row['좌표(Y)'], row['좌표(X)']],
+                    popup=row['요양기관명'],
+                    icon=folium.Icon(color='blue', icon='plus-sign')
+                ).add_to(m)
+            for idx, row in pharmacy_df.iterrows():
+                folium.Marker(
+                    location=[row['좌표(Y)'], row['좌표(X)']],
+                    popup=row['요양기관명'],
+                    icon=folium.Icon(color='red', icon='remove-sign')
+                ).add_to(m)
+
+        output = st_folium(m, width=700, height=500)
+
+    # 마커 클릭시 정보 출력
+    with col2:
+        if output and 'last_object_clicked' in output:
+            clicked_location = output['last_object_clicked']
+            if clicked_location:
+                # 클릭된 마커의 위도와 경도를 가져옴
+                clicked_lat = clicked_location['lat']
+                clicked_lng = clicked_location['lng']
+
+                # 병원 정보에서 해당 위치를 찾음
+                hospital_selected = hospital_df[
+                    (hospital_df['좌표(Y)'] == clicked_lat) & 
+                    (hospital_df['좌표(X)'] == clicked_lng)
+                ]
+
+                # 약국 정보에서 해당 위치를 찾음
+                pharmacy_selected = pharmacy_df[
+                    (pharmacy_df['좌표(Y)'] == clicked_lat) & 
+                    (pharmacy_df['좌표(X)'] == clicked_lng)
+                ]
+
+                # 병원 정보 출력
+                if not hospital_selected.empty:
+                    st.header(f"**병원:** {hospital_selected.iloc[0]['요양기관명']}")
+                    st.subheader(f"**종별코드명:** {hospital_selected.iloc[0]['종별코드명']}")
+                    st.subheader(f"**주소:** {hospital_selected.iloc[0]['주소']}")
+                    st.subheader(f"**전화번호:** {hospital_selected.iloc[0]['전화번호']}")
+                    if pd.notna(hospital_selected.iloc[0]['병원홈페이지']):
+                        st.subheader(f"**병원 홈페이지:** {hospital_selected.iloc[0]['병원홈페이지']}")
+
+                # 약국 정보 출력
+                if not pharmacy_selected.empty:
+                    st.header(f"**약국:** {pharmacy_selected.iloc[0]['요양기관명']}")
+                    st.subheader(f"**주소:** {pharmacy_selected.iloc[0]['주소']}")
+                    st.subheader(f"**전화번호:** {pharmacy_selected.iloc[0]['전화번호']}")
+
 
 def thrid_page():
     st.title("페이지3")
