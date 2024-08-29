@@ -48,6 +48,7 @@ def check_and_reset_gpt_usage():
     global gpt_usage_count, last_reset_date
     today = datetime.date.today()
     if today > last_reset_date:
+        gpt_usage_count = 0  # 사용량을 초기화
         last_reset_date = today
         
 # 로깅설정 
@@ -64,7 +65,7 @@ openai_client = OpenAIClient(api_key=os.getenv('OPENAI_API_KEY'))
 # 모델 초기화
 @st.cache_resource
 def load_model():
-    model_name = "centwon/ko-gpt-trinity-1.2B-v0.5_v3"
+    model_name = "centwon/ko-gpt-trinity-1.2B-v0.5_v2"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name).to('cuda' if torch.cuda.is_available() else 'cpu')
     return tokenizer, model
@@ -207,68 +208,8 @@ def generate_gpt4_response(query: str, context: Optional[str] = None, metadata: 
 # 3-2. 파인튜닝 모델 
 # gpt 처럼 사용가능?? 
 # 토큰값 처음 200으로 고정 
-# def generate_custom_model_response(query: str, context: Optional[str] = None, metadata: Optional[Dict[str, str]] = None, max_tokens: int = 200) -> str:
-#     try:
-#         documents = simple_search(query)
-#         if documents:
-#             # 첫 번째 문서의 메타데이터를 가져옴
-#             top_document = documents[0]
-#             metadata = {
-#                 '질병': top_document.metadata.get('질병', 'N/A'),
-#                 '의도': top_document.metadata.get('의도', 'N/A'),
-#                 '답변': top_document.page_content,
-#                 '유사도': top_document.metadata.get('score', 'N/A')
-#             }
-#         # 시스템에게 역할과 규칙을 알려주는 메시지
-#         system_message = (
-#         "주어진 max_tokens값 안에서 문장을 끝내. 만들어진 답변: 이후에 니가 만든 답변을 넣어. 만들어진 답변만 출력해. 질병에 대해 어떠한 의도로 묻는지 파악해서 대답해. 최대한 정확하게 대답해.질병에 대한 질문만 올거야"
-#         )   
 
-#         # 사용자의 질문과 관련된 추가 정보
-#         user_message = (
-#             f"User Query: {query}\n\n"
-#             f"- Disease: {metadata.get('질병', 'N/A')}\n"
-#             f"- Reference Answer: {metadata.get('DB 답변', 'N/A')}\n"
-#             f"Please provide a clear and concise response addressing the symptoms of {metadata.get('질병', 'N/A')} and the recommended actions."
-#         )
-#         prompt = system_message + "\n\n" + user_message
-        
-#         # 모델 호출
-#         inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-#         start_time = time.time()
-#         outputs = model.generate(
-#             **inputs,
-#             max_new_tokens=max_tokens,  # 응답의 최대 길이
-#             num_return_sequences=1,  # 생성할 응답의 개수
-#             no_repeat_ngram_size=2,  # n-gram 중복 방지
-#             temperature=0.4,  # 창의성 제어
-#             do_sample=True,  # 샘플링 방식
-#         )
-#         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-#         processing_time = time.time() - start_time
-#         logging.info("파인튜닝된 모델을 사용 중입니다.")
-#         logging.info('-'*30)
-#         logging.info('참고한 메타데이터 정보')
-#         logging.info('-'*30)
-#         logging.info(f" 질병 : {metadata.get('질병', 'N/A')}")
-#         logging.info(f" 의도 : {metadata.get('의도', 'N/A')}")
-#         logging.info(query)
-#         logging.info(f"참고한 답변 : {metadata.get('답변', 'N/A')}")
-#         logging.info(f"유사도 (score): {metadata.get('유사도', 'N/A')}")
-        
-
-#         return response.split("답변:")[-1].strip(), "Custom Model",processing_time
-
-    
-
-#     except Exception as e:
-#         logging.error(f"응답 생성 중 오류 발생: {str(e)}", exc_info=True)
-#         return "죄송합니다. 응답을 생성하는 중에 오류가 발생했습니다."
-
-
-
-
-def generate_custom_model_response(query: str, context: Optional[str] = None, metadata: Optional[Dict[str, str]] = None, max_tokens: int = 200) -> str:
+def generate_custom_model_response(query: str, context: Optional[str] = None, metadata: Optional[Dict[str, str]] = None, max_tokens: int = 35) -> str:
     try:
         documents = simple_search(query)
         if documents:
@@ -280,19 +221,41 @@ def generate_custom_model_response(query: str, context: Optional[str] = None, me
                 '답변': top_document.page_content,
                 '유사도': top_document.metadata.get('score', 'N/A')
             }
-        prompt = f"질문: {query}\n\n컨텍스트: {context or ''}\n\n메타데이터: {metadata or {}}\n\n답변:"
+        # 프롬프트 생성
+        if max_tokens > 100:  # 토큰 수가 많을 경우
+            prompt = (
+                f"Question: {query}\n\n"
+                "Provide a detailed, professional, and medically accurate response to the question above. "
+                "The response should be clear, well-structured, and cover the most relevant aspects of the condition, including symptoms, possible complications, and recommended treatment approaches. "
+                "Ensure the response is appropriate for a healthcare context and provides valuable insights for the user. "
+                "You are a professional healthcare assistant. Provide a clear, precise, and well-structured response to the user's question. "
+                "The response should demonstrate your expertise and understanding of the condition. Avoid repetition and ensure each statement adds value to the user's understanding. "
+                "Each paragraph should be separated by two new lines for better readability. "
+                "Ensure that each sentence in the response is followed by a newline for better readability.\n\n"  # 문장마다 띄어쓰기 요청
+                "답변임:"
+            )
+
+        else:  # 토큰 수가 적을 경우
+            prompt = (
+                f"Question: {query}\n\n"
+                f"Provide a brief and concise response about {top_document.metadata.get('질병', 'N/A')}. "
+                "Limit the response to the key points only and do not exceed the token limit. "
+                "End the response naturally within the given token limit.\n\n"
+                "답변임:"
+            )
+
         inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-        
+        start_time = time.time()
         outputs = model.generate(
             **inputs,
             max_new_tokens=max_tokens,  
             num_return_sequences=1,
             no_repeat_ngram_size=2,
-            temperature=0.4,
-            
+            temperature=0.3,
+            top_p=0.95,
             do_sample=True
         )
-        start_time = time.time()
+        
         
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
         processing_time = time.time() - start_time
@@ -306,7 +269,9 @@ def generate_custom_model_response(query: str, context: Optional[str] = None, me
         logging.info(f"참고한 답변 : {metadata.get('답변', 'N/A')}")
         logging.info(f"유사도 (score): {metadata.get('유사도', 'N/A')}")
         
-        return response.split("답변:")[-1].strip('답변:')[-1].strip() , "Custom Model",processing_time
+        if "답변임:" in response:
+            response = response.split("답변임:")[-1].strip()
+        return response, "Custom Model",processing_time
 
     except Exception as e:
         logging.error(f"응답 생성 중 오류 발생: {str(e)}", exc_info=True)
@@ -317,23 +282,28 @@ def generate_custom_model_response(query: str, context: Optional[str] = None, me
 
 ########################
 # 3-3. 사용량 처리 
-def generate_response(query: str, context: Optional[str] = None, metadata: Optional[Dict[str, str]] = None) -> Tuple[str, str]:
-    
+def generate_response(query: str, context: Optional[str] = None, metadata: Optional[Dict[str, str]] = None, max_tokens: int = 35) -> Tuple[str, str, float]:
     try:
-        if gpt_usage_count < MAX_GPT_USAGE:
-            check_and_reset_gpt_usage()
-            gpt_usage_count += 1
-            response = generate_gpt4_response(query, context, metadata)
-            logging.info(f"GPT-4 사용 횟수: {gpt_usage_count}")
-            model = "GPT-4"
+        check_and_reset_gpt_usage()
+
+        if 'gpt_usage_count' not in st.session_state:
+            st.session_state.gpt_usage_count = 0
+
+        if st.session_state.model_selected == "GPT-4" and st.session_state.gpt_usage_count < MAX_GPT_USAGE:
+            st.session_state.gpt_usage_count += 1
+            response, model, processing_time = generate_gpt4_response(query, context, metadata)
+            logging.info(f"GPT-4 사용 횟수: {st.session_state.gpt_usage_count}")
         else:
-            response, model, processing_time = generate_custom_model_response(query, context, metadata)
+            response, model, processing_time = generate_custom_model_response(query, context, metadata, max_tokens=max_tokens)
             logging.info(f"Custom 모델을 사용하여 응답 생성")
-            model = "Custom Model"
+            if max_tokens == 35:  # 짧은 답변의 경우에만 추가
+                    response += " ....(자세히)" 
+
         return response, model, processing_time
+
     except Exception as e:
         logging.error(f"응답 생성 중 오류 발생: {str(e)}", exc_info=True)
-        return "죄송합니다. 응답을 생성하는 중에 오류가 발생했습니다.", "Error",0.0
+        return "죄송합니다. 응답을 생성하는 중에 오류가 발생했습니다.", "Error", 0.0
 
 ########################
 # 4. 쿼리 처리
@@ -352,17 +322,12 @@ def process_query(query: str, chat_history: List[Dict[str, str]]) -> Tuple[str, 
         best_match = search_results[0]
         context = best_match.page_content
         
-        response, model = generate_response(query, context, best_match.metadata)
-        processing_time = time.time() - start_time
+        response, model,processing_time = generate_response(query, context, best_match.metadata)
         logging.info(f"(쿼리함수) 처리 시간: {processing_time:.2f}초")
         
         if model == "Custom Model":
-            logging.info(f"사용된 토큰 수: {200 if st.session_state.model_selected == 'Custom-200' else 800}")
+            logging.info(f"사용된 토큰 수: {35 if st.session_state.model_selected == 'Custom-200' else 800}")
 
-
-        # 처리시간 
-        processing_time = time.time() - start_time
-        logging.info(f"처리 시간: {processing_time:.2f}초")
         return response, model,processing_time
        
     except Exception as e:
@@ -384,122 +349,6 @@ def display_typing_effect(text):
         output.markdown(f"<p>{displayed_text}</p>", unsafe_allow_html=True)
         time.sleep(0.05)
 
-
-
-
-# def main():
-#     model_option = st.radio("응답 생성 모델을 선택하세요:", ("GPT-4", "Custom Model")) # 위치???
-
-#     if 'chat_history' not in st.session_state:
-#         st.session_state.chat_history = []
-#         st.session_state.chat_history.append({"role": "assistant", "content": "무엇을 도와드릴까요?"}) # 위치???
-        
-
-#     if 'gpt_usage_count' not in st.session_state:
-#         st.session_state.gpt_usage_count = 0
-        
-#     if 'model_selected' not in st.session_state:
-#         st.session_state.model_selected = False
-
-#     # 모델 선택 라디오 버튼을 상단에 배치
-#     model_option = st.radio("응답 생성 모델을 선택하세요:", ("GPT-4", "Custom Model"), key="model_selection")
-#     # 모델 선택이 변경되었을 때 세션 상태 업데이트
-#     if model_option != st.session_state.model_selected:
-#         st.session_state.model_selected = model_option
-#         st.session_state.chat_history.append({"role": "system", "content": f"모델이 {model_option}로 변경되었습니다."})
-
-        
-#     for chat in st.session_state.chat_history:
-#         with st.chat_message(chat["role"]):
-#             st.write(chat["content"])
-    
-#     user_input = st.chat_input("질문을 입력하세요...")
-    
-    
-    
-#     if user_input:
-#         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        
-#         with st.chat_message("user"):
-#             st.write(user_input)
-
-#         with st.spinner("답변 생성 중..."):
-#             if model_option == "GPT-4":
-#                 response, model, processing_time = generate_response(user_input, context=None, metadata=None)
-#             else:
-#                 response, model, processing_time = generate_custom_model_response(user_input, context=None, metadata=None)
-
-#         st.session_state.chat_history.append({"role": "assistant", "content": response})
-#         with st.chat_message("assistant"):
-#             st.write(response)    
-            
-            
-            
-            
-            
-            
-    
-#     if 'chat_history' not in st.session_state:
-#         st.session_state.chat_history = []
-#         st.session_state.chat_history.append({"role": "assistant", "content": "무엇을 도와드릴까요?"})
-    
-#     # if 'model_selected' not in st.session_state:
-#     #     st.session_state.model_selected = False
-#     model_option = st.radio("응답 생성 모델을 선택하세요:", ("GPT-4", "Custom Model"))    
-    
-#     if 'gpt_usage_count' not in st.session_state:
-#         st.session_state.gpt_usage_count = 0
-    
-#     for chat in st.session_state.chat_history:
-#         with st.chat_message(chat["role"]):
-#             st.subheader(chat["content"])
-#             # 어디 들어가야지???
-#             # st.session_state.chat_history.append({"role": "assistant", "content": "모델을 골라주세요."})
-#     user_input = st.chat_input("질문을 입력하세요...")
-
-
-#     for chat in st.session_state.chat_history:
-#         with st.chat_message(chat["role"]):
-#             st.subheader(chat["content"])
-
-
-    
-
-#     if user_input:
-#         st.session_state.chat_history.append({"role": "user", "content": user_input})
-#         with st.chat_message("user"):
-#             st.subheader(user_input)
-
-#         with st.spinner("답변 생성 중..."):
-#             if model_option == "GPT-4":
-#                 response, model, processing_time = generate_response(query=user_input, context=None, metadata=None)
-#             else:
-#                 response, model, processing_time = generate_custom_model_response(user_input, context=None, metadata=None)
-            
-#             st.session_state.chat_history.append({"role": "assistant", "content": response})
-#             with st.chat_message("assistant"):
-#                 st.write(response)
-#                 st.write(f"사용된 모델: {model}")
-#                 st.write(f"처리 시간: {processing_time:.2f}초")
-
-#             if model == "Custom Model" and st.button("더 긴 답변을 원하세요?"):
-#                 long_response, _, long_processing_time = generate_custom_model_response(user_input, max_tokens=800)
-#                 st.session_state.chat_history.append({"role": "assistant", "content": long_response})
-#                 with st.chat_message("assistant"):
-#                     st.write(long_response)
-#                     st.write(f"사용된 모델: Custom Model (긴 답변)")
-#                     st.write(f"처리 시간: {long_processing_time:.2f}초")
-
-#     # GPT 사용량 표시
-#     logging.info(f"GPT-4 사용 횟수: {st.session_state.gpt_usage_count}/{MAX_GPT_USAGE}")
-
-
-
-
-
-# if __name__ == "__main__":
-#     main()
-
 def main():
     st.title("의료 상담 챗봇")
 
@@ -513,10 +362,14 @@ def main():
     if 'model_selected' not in st.session_state:
         st.session_state.model_selected = "GPT-4"
 
-    # 모델 선택 라디오 버튼을 상단에 배치하고 고유한 키 추가
+    if 'show_long_response_option' not in st.session_state:
+        st.session_state.show_long_response_option = False
+
+    if 'current_query' not in st.session_state:
+        st.session_state.current_query = ""
+
     model_option = st.radio("응답 생성 모델을 선택하세요:", ("GPT-4", "Custom Model"), key="model_selection")
-    
-    # 모델 선택이 변경되었을 때 세션 상태 업데이트
+
     if model_option != st.session_state.model_selected:
         st.session_state.model_selected = model_option
         st.session_state.chat_history.append({"role": "system", "content": f"모델이 {model_option}로 변경되었습니다."})
@@ -528,32 +381,34 @@ def main():
     user_input = st.chat_input("질문을 입력하세요...")
 
     if user_input:
+        st.session_state.current_query = user_input
         st.session_state.chat_history.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
             st.write(user_input)
 
         with st.spinner("답변 생성 중..."):
-            if st.session_state.model_selected == "GPT-4":
-                response, model, processing_time = generate_gpt4_response(query=user_input)
-
-            else:
-                response, model, processing_time = generate_custom_model_response(user_input)
-            
+            response, model, processing_time = generate_response(query=user_input, max_tokens=35)
             st.session_state.chat_history.append({"role": "assistant", "content": response})
             with st.chat_message("assistant"):
                 st.write(response)
-                st.write(f"사용된 모델: {model}")
-                st.write(f"처리 시간: {processing_time:.2f}초")
+                logging.info(f"사용된 모델: {model}")
+                logging.info(f"처리 시간: {processing_time:.2f}초")
 
-            if model == "Custom Model" and st.button("더 긴 답변을 원하세요?", key="longer_response"):
-                long_response, _, long_processing_time = generate_custom_model_response(user_input, max_tokens=800)
-                st.session_state.chat_history.append({"role": "assistant", "content": long_response})
+            if model == "Custom Model":
+                st.session_state.show_long_response_option = True
+
+    if st.session_state.show_long_response_option:
+        if st.button("긴 답변을 원하시나요?"):
+            with st.spinner("긴 답변 생성 중입니다...생성 시간이 기존보다 더 걸릴수 있습니다"):
+                long_response, _, long_processing_time = generate_response(query=st.session_state.current_query, max_tokens=800)
+                st.session_state.chat_history[-1] = {"role": "assistant", "content": long_response}
                 with st.chat_message("assistant"):
                     st.write(long_response)
-                    st.write(f"사용된 모델: Custom Model (긴 답변)")
-                    st.write(f"처리 시간: {long_processing_time:.2f}초")
+                    logging.info(f"사용된 모델: Custom Model (긴 답변)")
+                    logging.info(f"처리 시간: {long_processing_time:.2f}초")
 
-    # GPT 사용량 표시
+            st.session_state.show_long_response_option = False
+
     st.sidebar.write(f"GPT-4 사용 횟수: {st.session_state.gpt_usage_count}/{MAX_GPT_USAGE}")
 
 if __name__ == "__main__":
