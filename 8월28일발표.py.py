@@ -418,13 +418,10 @@ def chat_interface():
 
 def hospital_pharmacy_page():
     
-hospital_df = pd.read_csv('병원.csv')
-pharmacy_df = pd.read_csv('약국.csv')
+    hospital_df = pd.read_csv('병원.csv')
+    pharmacy_df = pd.read_csv('약국.csv')
 
-    # 배경 이미지를 base64로 인코딩하는 함수
-def hospital_pharmacy_page():
-    # 스트림릿 페이지 설정
-
+        # 배경 이미지를 base64로 인코딩하는 함수
     st.markdown(f"""
         <style>
 
@@ -451,8 +448,8 @@ def hospital_pharmacy_page():
         }}
         </style>
     """, unsafe_allow_html=True)
-    
-    # 세션 상태 초기화
+        
+        # 세션 상태 초기화
     if "selected_option" not in st.session_state:
         st.session_state.selected_option = "전체 보기"
 
