@@ -36,8 +36,8 @@ load_dotenv()
 
 # st.set_page_config(layout="wide")
 AudioSegment.converter = which("ffmpeg")
-hospital_df = pd.read_csv('data/병원.csv')
-pharmacy_df = pd.read_csv('data/약국.csv')
+hospital_df = pd.read_csv('csv/병원.csv')
+pharmacy_df = pd.read_csv('csv/약국.csv')
 
 
 # 로깅설정 
