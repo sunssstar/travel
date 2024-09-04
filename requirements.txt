@@ -2,15 +2,9 @@ streamlit==1.38.0
 streamlit-option-menu==0.3.13
 streamlit_folium==0.22.0
 audio-recorder-streamlit==0.0.10
-os==0.1
-io==0.1
-base64==1.2.0
 python-dotenv==1.0.1
 pandas==2.2.2
 folium==0.17.0
-logging==0.5.1.2
-time==0.1
-datetime==5.2
 transformers==4.44.2
 torch==2.3.1
 pydub==0.25.1
