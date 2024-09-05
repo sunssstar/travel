@@ -44,10 +44,10 @@ pharmacy_df = pd.read_csv('csv/약국.csv')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 # 전역 변수 및 클라이언트 초기화
 COLLECTION_NAME = "hyoja_son"
-client = QdrantClient(url=os.getenv('QDRANT_URL'), api_key=os.getenv('QDRANT_API_KEY'))
+client = QdrantClient(url=st.secrets('QDRANT_URL'), api_key=st.secrets('QDRANT_API_KEY'))
 embeddings = HuggingFaceEmbeddings(model_name="jhgan/ko-sroberta-multitask")
 vector_store = LangchainQdrant(client=client, collection_name=COLLECTION_NAME, embeddings=embeddings)
-openai_client = OpenAIClient(api_key=os.getenv('OPENAI_API_KEY'))
+openai_client = OpenAIClient(api_key=st.secrets('OPENAI_API_KEY'))
 
 # 모델 초기화
 @st.cache_resource
