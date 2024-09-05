@@ -44,11 +44,22 @@ pharmacy_df = pd.read_csv('csv/약국.csv')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 # 전역 변수 및 클라이언트 초기화
 COLLECTION_NAME = "hyoja_son"
-client = QdrantClient(url=st.secrets('QDRANT_URL'), api_key=st.secrets('QDRANT_API_KEY'))
-embeddings = HuggingFaceEmbeddings(model_name="jhgan/ko-sroberta-multitask")
-vector_store = LangchainQdrant(client=client, collection_name=COLLECTION_NAME, embeddings=embeddings)
-openai_client = OpenAIClient(api_key=st.secrets('OPENAI_API_KEY'))
+# Streamlit secrets에서 API 키 및 URL 가져오기
+qdrant_url = st.secrets["QDRANT_URL"]
+qdrant_api_key = st.secrets["QDRANT_API_KEY"]
+openai_api_key = st.secrets["OPENAI_API_KEY"]
 
+# QdrantClient 초기화
+client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+
+# HuggingFace Embeddings 모델 설정
+embeddings = HuggingFaceEmbeddings(model_name="jhgan/ko-sroberta-multitask")
+
+# LangchainQdrant 벡터 스토어 설정
+vector_store = LangchainQdrant(client=client, collection_name=COLLECTION_NAME, embeddings=embeddings)
+
+# OpenAIClient 초기화
+openai_client = OpenAIClient(api_key=openai_api_key)
 # 모델 초기화
 @st.cache_resource
 def load_model():
