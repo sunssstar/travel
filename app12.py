@@ -44,10 +44,11 @@ pharmacy_df = pd.read_csv('csv/약국.csv')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 # 전역 변수 및 클라이언트 초기화
 COLLECTION_NAME = "hyoja_son"
+
 # Streamlit secrets에서 API 키 및 URL 가져오기
-qdrant_url = st.secrets["QDRANT_URL"]
-qdrant_api_key = st.secrets["QDRANT_API_KEY"]
-openai_api_key = st.secrets["OPENAI_API_KEY"]
+qdrant_url = st.secrets["qdrant"]["QDRANT_URL"]
+qdrant_api_key = st.secrets["qdrant"]["QDRANT_API_KEY"]
+openai_api_key = st.secrets["openai"]["OPENAI_API_KEY"]
 
 # QdrantClient 초기화
 client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
